@@ -1,0 +1,20 @@
+# 校园设施损伤智能分割与量化评估系统 —— 依赖清单
+# 安装顺序见 README.md。torch 需从 CUDA 源安装。
+
+# torch/torchvision 需从 CUDA 源或本地 wheel 安装（见 README）
+torch
+torchvision
+ultralytics
+sam2
+opencv-python
+streamlit
+numpy
+pandas
+pillow
+matplotlib
+tqdm
+pyyaml
+openpyxl
+scipy
+scikit-image
+# 注：增强(03_augment_dataset.py)为纯 opencv/numpy 自研实现，无需 albumentations

@@ -1,0 +1,31 @@
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# ---------- 大文件：数据集（别人用 scripts/01-08 重建） ----------
+data/
+
+# ---------- 大文件：模型权重 ----------
+# 基础模型权重，用 scripts/download_models.py 下载
+weights/sam2*.pt
+weights/yolo11n.pt
+weights/yolo26n.pt
+weights/yolov8n.pt
+# 训练好的成果权重保留（约 5MB/个）
+!weights/best.pt
+!weights/best_orig.pt
+
+# ---------- 训练/运行产物 ----------
+runs/
+outputs/
+*.npy
+*.log
+*_cache/  # ultralytics 的 dataset 缓存目录
+
+# ---------- 系统 ----------
+Thumbs.db
+.DS_Store

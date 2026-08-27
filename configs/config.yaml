@@ -1,0 +1,48 @@
+# 校园设施损伤智能分割与量化评估系统 —— 全局配置
+# 修改此文件即可切换模型权重、路径与后处理阈值，无需改代码
+
+classes:
+  # YOLO 检测类别（0/1/2）；"完好" 作为负样本，不参与检测
+  names: ["peeling", "crack", "rust"]
+  chinese: ["墙面剥落", "地面裂缝", "设施锈蚀"]
+  # 可视化颜色（BGR，供 opencv / streamlit 叠加）
+  colors: [[0, 0, 255], [255, 0, 0], [0, 255, 0]]
+
+paths:
+  data_dir: "data"
+  raw_dir: "data/raw"            # 原始公开数据集
+  processed_dir: "data/processed" # 清洗+增强后
+  split_dir: "data/splits"       # train/val/test 划分
+  weights_dir: "weights"         # 模型权重
+  output_dir: "outputs"          # 推理结果/报表
+
+detect:
+  model: "weights/best.pt"    # 训练完成（增强集 100 epoch，mAP50 0.858）
+  conf: 0.25
+  iou: 0.45
+  imgsz: 640
+  max_det: 30                    # 单图最大缺陷数，抑制级联推理爆炸
+
+segment:
+  # SAM2 零样本分割：模型权重 + 对应 config yaml（config 随 sam2 包提供）
+  checkpoint: "weights/sam2.1_hiera_large.pt"
+  config: "sam2.1_hiera_l.yaml"
+  device: "cuda"                 # cpu / cuda
+
+postprocess:
+  # 自适应掩码后处理阈值（相对全图面积的比例）
+  min_area_ratio: 0.0002         # 缺陷占全图 < 0.02% 视为伪掩码剔除
+  max_area_ratio: 0.90           # 缺陷占全图 > 90% 视为整图误分割剔除
+  min_component_ratio: 0.10      # 连通域面积 < 最大域 10% 视为碎片剔除
+  fill_holes: true               # 孔洞填充
+  morph_ksize: 5                 # 形态学闭/开运算核大小（奇数）
+  morph_iter: 1                  # 形态学迭代次数
+  keep_largest_only: true        # 每个 ROI 只保留最大连通域
+
+quantify:
+  # 像素 → 真实面积 标定系数（mm/像素）。None 时只输出像素面积与占比。
+  mm_per_pixel: null             # 例如 0.5 表示 1 像素 = 0.5mm
+
+splits:
+  ratios: [0.7, 0.2, 0.1]        # train / val / test
+  seed: 42
