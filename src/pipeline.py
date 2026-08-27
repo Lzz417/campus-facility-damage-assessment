@@ -12,6 +12,41 @@ from . import postprocess as pp
 from . import quantify as q
 
 
+def _adjust_box(roi_box: np.ndarray, cfg, cls_name: str | None,
+                roi_shape: tuple[int, int]) -> np.ndarray:
+    """按类别对 SAM2 box prompt 做边距调整（配置可调，正=扩张、负=收缩）。
+
+    默认关闭（config.yaml 中 box_margin 全 0）。实测定论（198 张 GT 全量）：
+      * 面病害（剥落/锈蚀）扩张让 SAM2 把周边墙面/地面误当缺陷，掩码过分割，
+        剥落 mIoU 0.757→0.232、锈蚀 0.688→0.512，整体缺陷 mIoU 0.692→0.331。
+      * 线状裂缝负边距（收缩）会使部分裂缝掩码膨胀 2.5 倍（背景外溢）。
+    保留此函数作为实验调参选项；开启时扩张引入的背景外溢由后处理清洗
+    （keep_largest_only + min_area_px）。
+    """
+    margins = cfg.detect.get("box_margin") or {}
+    ratio = 0.0
+    if hasattr(margins, "get"):
+        ratio = float(margins.get(cls_name, 0.0) or 0.0)
+    if ratio == 0.0:
+        return roi_box
+    bw = roi_box[2] - roi_box[0]
+    bh = roi_box[3] - roi_box[1]
+    if bw <= 0 or bh <= 0:
+        return roi_box
+    box = roi_box.copy()
+    box[0] -= bw * ratio
+    box[1] -= bh * ratio
+    box[2] += bw * ratio
+    box[3] += bh * ratio
+    rh, rw = roi_shape[:2]
+    # 边界钳制：坐标不能 <0、不能超出 ROI 宽高
+    box[[0, 2]] = np.clip(box[[0, 2]], 0, rw - 1)
+    box[[1, 3]] = np.clip(box[[1, 3]], 0, rh - 1)
+    if box[2] <= box[0] or box[3] <= box[1]:  # 防退化
+        return roi_box
+    return box
+
+
 def run_pipeline(image_bgr: np.ndarray, cfg,
                  yolo_model=None, sam2_predictor=None,
                  use_post: bool = True) -> dict:
@@ -45,10 +80,15 @@ def run_pipeline(image_bgr: np.ndarray, cfg,
         x1, y1, x2, y2 = [int(v) for v in d.xyxy]
         roi_box = np.array([x1 - offset[0], y1 - offset[1],
                             x2 - offset[0], y2 - offset[1]], dtype=np.float32)
+        # 逐类 box 边距调整（默认关闭，见 _adjust_box 注释；实验项）
+        cls_name = class_names[d.cls] if d.cls < len(class_names) else None
+        roi_box = _adjust_box(roi_box, cfg, cls_name, roi.shape)
         roi_mask = seg.segment_roi(sam2_predictor, roi, roi_box)
         # 自研后处理（创新点3）
         if use_post:
-            roi_mask = pp.postprocess_mask(roi_mask, cfg)
+            min_px_cfg = cfg.postprocess.get("min_area_px_per_class") or {}
+            min_px = int(min_px_cfg.get(cls_name, 0) or 0) if hasattr(min_px_cfg, "get") else 0
+            roi_mask = pp.postprocess_mask(roi_mask, cfg, min_area_px=min_px)
         if roi_mask.sum() == 0:
             continue
         placed = det.place_roi_mask(roi_mask, offset, (h, w))

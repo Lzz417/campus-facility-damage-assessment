@@ -108,8 +108,11 @@ def smooth_contours(mask: np.ndarray, ksize: int = 5,
     return cv2.morphologyEx(closed, cv2.MORPH_OPEN, kernel, iterations=iterations)
 
 
-def postprocess_mask(mask: np.ndarray, cfg) -> np.ndarray:
+def postprocess_mask(mask: np.ndarray, cfg, min_area_px: int = 0) -> np.ndarray:
     """完整后处理流水线。cfg 为 config.py 的 Config 对象（.postprocess 节）。
+
+    min_area_px：按类别传入的最小掩码绝对像素数（0 表示不启用），
+    用于剔除低置信虚检产生的极小无效掩码（不渲染、不进量化表）。
 
     输入任意形状掩码，输出 0/1 uint8 二值掩码。
     """
@@ -121,6 +124,8 @@ def postprocess_mask(mask: np.ndarray, cfg) -> np.ndarray:
                           pp.get("max_area_ratio", 0.90))
     if mask.sum() == 0:
         return mask
+    if min_area_px > 0 and int(mask.sum()) < min_area_px:
+        return np.zeros_like(mask)
     if pp.get("fill_holes", True):
         mask = fill_holes(mask)
     # 自适应：细长缺陷（裂缝）断裂成多段，不应只保留最大连通域；
