@@ -9,16 +9,68 @@
 ![SAM2](https://img.shields.io/badge/SAM2-Meta_2.1-red)
 ![Streamlit](https://img.shields.io/badge/Streamlit-WebApp-FF4B4B?logo=streamlit&logoColor=white)
 ![CUDA](https://img.shields.io/badge/CUDA-12.4-76B900)
-![License](https://img.shields.io/badge/License-MIT-yellow)
+![License](https://img.shields.io/badge/License-AGPL--3.0-blue)
 
 面向校园**墙面剥落、地面裂缝、设施锈蚀**三类设施病害的端到端评估系统。
 「检测 → 分割 → 量化 → 报表」全流程自动化，无需实拍数据、无需微调 SAM2。
 
 </div>
 
-![系统效果示例](assets/banner.jpg)
+![系统效果示例（左：原图 ｜ 右：分割叠加）](assets/demo_peeling.jpg)
+
+> 顶部展示图使用 `assets/demo_peeling.jpg`（本项目自制的"原图 ｜ 分割叠加"对比图，
+> 原图来自 **MBDD2025**，CC BY 4.0，署名见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)）。
+> 原先的 `assets/banner.jpg` 因**来源无法确认**已移除（不承担版权风险），
+> 后续替换图将只使用本项目自制的图 / Web UI 截图 / 自绘架构示意图 / 许可证明确且已署名者。
 
 ---
+
+## 📌 Project Status
+
+| 项 | 状态 |
+|---|---|
+| V2 严格留出评价（split_v2） | **CLOSED**（evidence frozen，不再改动） |
+| V3 域适配实验 | **CLOSED**（evidence frozen，不再改动） |
+| Web demo 实现 | **SYNCHRONIZED AFTER EVALUATION**（工程同步，非重新评价） |
+| 新增性能证据 | **NONE** |
+
+```
+Scientific evaluation: FROZEN / UNCHANGED
+Demo implementation:   SYNCHRONIZED AFTER EVALUATION
+New performance evidence: NONE
+```
+
+> **本项目自有的代码与文档按 AGPL-3.0 发布；第三方组件（Ultralytics YOLO、Meta SAM 2、数据集）
+> 继续受各自许可证约束。** 详见 [LICENSE](LICENSE) 与 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+## 🔎 Key Findings
+
+- **V2 严格留出评价（split_v2 test）**：`mAP50 = 0.1632`。
+- **V3 同来源留出比较（Smart Campus 来源 test）**：V2 baseline `mAP50 = 0.0353` → V3 adapted `mAP50 = 0.6533`。
+- **MBDD 旧域验证**：`0.1185 → 0.1064`，相对变化 **−10.2%**（仍在预登记的 forgetting guard 内）。
+
+**必须与上面三条一起读的边界**：
+
+1. Smart Campus 的 train / val / test **来自同一个公开数据来源**（同一数据集、同一次采集）；
+2. 因此 V3 的结果证明的是**针对该来源进行适配的效果**，**不证明**在未知校园或其它独立来源上的泛化；
+3. 该数据集页面**没有公开采集地点/方法**，所以**不能**断言其实际采自校园；
+4. V3 **只重新验证了 detector**，**没有**重新评价 SAM2 的像素级分割性能。
+
+全部允许使用的数字见 [docs/methodology/report_numbers_table_public.csv](docs/methodology/report_numbers_table_public.csv)。
+
+> All numbers shown in this README are taken from
+> `docs/methodology/report_numbers_table_public.csv`,
+> a public derived summary compiled from frozen V2/V3 evidence.
+> The original frozen evidence files remain unchanged.
+
+## 🧪 Methodological Contributions
+
+1. **近重复泄漏审计与受控评价**：发现并量化了原随机划分中的同源近重复泄漏，改为按约束组划分的严格留出评价。
+2. **数据治理 + 带 forgetting guard 的来源特化适配**：对新来源做污染审计与清洗（含剔除第三方水印素材、AI 生成图、实验室试片），
+   并以"新来源提升"为主目标、同时用预登记的遗忘阈值约束旧域退化。
+3. **YOLO11 → SAM2 级联的误差诊断**：定位检测器为级联链的主要瓶颈，并区分"检测漏检"与"分割质量"两类误差来源。
+
+> 以上属于**数据治理、评价方法与实验设计**层面的贡献，**不是**新的基础网络结构。
 
 ## ✨ 功能亮点
 
@@ -89,7 +141,32 @@ streamlit run app/app.py
 
 ---
 
+## 🧭 Demo vs Evaluation
+
+Web demo 与冻结评价链路的处理口径**已经对齐**，但两者用途不同，必须区分：
+
+| | 历史实验/复现 | Web demo |
+|---|---|---|
+| 入口 | `experiments/`、`scripts/` 中的历史脚本 | `app/app.py` |
+| `src/pipeline.py` 的 `frozen_compat` | **默认 `False`（保持历史行为）** | **显式传 `True`** |
+| 目的 | 复现已记录的历史实验结果 | 与 V2 冻结评价口径一致 |
+
+- `frozen_compat=False`（默认）：ROI 以 BGR 原样送入 SAM2；跨类冲突**低 conf 胜**——**历史行为，保持不变**，
+  以免历史脚本重跑时与已记录的 `experiments/ablation*.csv` 不可比。
+- `frozen_compat=True`（仅 demo）：送 SAM2 前显式 **BGR→RGB**；跨类冲突**高 conf 胜**；demo 默认**置信度 0.075**（冻结工作点）。
+- 无检测结果时界面与报表统一显示 **「未检出目标」**（**不写**"无缺陷"——模型未检出 ≠ 实际不存在缺陷）。
+
+> ⚠️ 本次 demo 同步是**工程实现一致化**，**不是**新的实验结果：
+> 没有重跑评价、没有产生任何新的性能数字。
+> 详见 [docs/demo_sync/CHANGELOG.md](docs/demo_sync/CHANGELOG.md)。
+
+---
+
 ## 📊 实验结果
+
+> ⚠️ **本节数字来自 split_v2 之前的旧随机划分**，用于记录当时的消融结论。
+> 该划分后来被证明存在**同源近重复泄漏**，因此**这些数字不可与严格留出结果直接比较**。
+> 当前有效的严格评价结论见上方 **Key Findings**。
 
 **评估集**：198 张人工复核 GT 掩码（分层抽样，测试集原始分布，无泄漏）
 
@@ -146,7 +223,7 @@ campus-facility-damage-assessment/
 ├── train/train_yolo.py     # YOLOv11 训练
 ├── experiments/ablation.py # 消融对比实验
 ├── report/                 # 研究报告 + 演示脚本
-├── weights/                # 模型权重（训练成果已提交，SAM2 需下载）
+├── weights/                # 模型权重（用途/SHA256/许可见 weights/README.md）
 ├── start_system.bat        # Windows 一键启动
 └── requirements.txt
 ```
@@ -173,15 +250,57 @@ python experiments/ablation.py           # 组件消融 A/B/C/D
 
 ---
 
-## 🙏 致谢与数据来源
+## ♻️ Reproducibility
 
-- 检测数据：**MBDD** 公开病害数据集（bbox 标注，经清洗重分类为 3 类）
-- 分割基座：**SAM2**（Meta, Segment Anything 2, 零样本，未微调）
-- 检测基座：**YOLOv11n**（Ultralytics）
+- **环境**：Python 3.11 / PyTorch 2.6（CUDA 12.4）/ Ultralytics / SAM2 / Streamlit；完整依赖见 [requirements.txt](requirements.txt)。
+- **权重准备**：仓库内**只包含两个历史 YOLO 权重**；SAM2 检查点、yolo11n 预训练权重、
+  以及 V2/V3 的训练产物**均不在仓库中**，需自行获取。
+  **各自的位置、SHA256、用途与许可见 [weights/README.md](weights/README.md)。**
+- **数据准备**：MBDD2025 等原始数据集**不随仓库分发**，请按 [scripts/](scripts/) 中的编号脚本
+  自行下载与构建；V3 使用的第二数据来源**只发布来源说明、清洗方法与统计结果，不重新分发其图片**。
+- **V3 方法学脚本**：见 [scripts/v3/](scripts/v3/)（划分构建、训练、双域评价、checkpoint 选择、
+  阈值选择、最终 test 比较）。这些脚本**不会自动执行 test**，解封 test 需显式授权。
+- **研究过程文档**：[docs/methodology/](docs/methodology/) 与 [docs/protocols/](docs/protocols/)
+  （含预登记的模型选择协议与 test 比较协议）。
 
 ## 📄 许可证
 
-[MIT](LICENSE) © 2026 Lzz417
+本项目**自有代码与文档**按 **[AGPL-3.0](LICENSE)** 发布。
+
+```
+Copyright (C) 2026 Lzz417
+```
+
+**第三方组件继续受其各自许可证约束**，不因本项目采用 AGPL-3.0 而改变：
+
+| 组件 | 许可证 |
+|---|---|
+| Ultralytics YOLO11（含本仓库发布的、基于其训练的权重） | **AGPL-3.0** |
+| Meta SAM 2 | Apache-2.0 |
+| MBDD2025 数据集 | CC BY 4.0（署名） |
+
+完整声明（含数据来源与 `assets/` 图像的署名要求）见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+## ⚠️ Limitations
+
+1. **数据来源未核实**：V3 使用的第二数据来源只标注 "Provided by a Roboflow user"，
+   **没有公开采集地点与采集方法**，因此本仓库**不**称其为"已证实的真实校园数据"。
+2. **同源**：V3 的 train / val / test 来自**同一数据来源的同一次采集**，
+   故其结果只证明"对该来源的适配效果"，**不证明**对未知校园或其它独立来源的泛化。
+3. **无独立外部来源验证**：本轮没有引入任何独立的外部测试来源。
+4. **只验证检测器**：V3 **只重新验证了 detector**，**没有**重新评价 SAM2 的像素级分割性能；
+   分割结论仍来自此前的参考集评价，不随 V3 改变。
+5. **类别映射**由 AI 辅助视觉审计提出、按保守数据治理原则批准，且对污染最重的类别剔除了约 57% 的样本。
+6. **小样本**：V3 的 held-out test 规模较小（单一来源、单一光照条件）。
+7. **研究原型**：本系统是研究原型，**不是**结构安全评估系统，输出**不能**用于工程安全性判定。
+
+## 🙏 致谢与数据来源
+
+- 检测数据：**MBDD2025** 公开病害数据集（CC BY 4.0，bbox 标注，经清洗重分类为 3 类）
+- 第二数据来源：**Smart Campus Dataset**（Roboflow Universe；来源说明与清洗方法见
+  [docs/methodology/](docs/methodology/)，本项目**不重新分发其原始图片**）
+- 分割基座：**SAM2**（Meta, Segment Anything 2, 零样本，未微调）
+- 检测基座：**YOLOv11n**（Ultralytics，AGPL-3.0）
 
 ---
 

@@ -1,0 +1,18 @@
+{
+  "unseal_timestamp": "2026-10-16T16:23:15+0800",
+  "unsealed_by": "project member",
+  "smart_campus_v3_test_manifest_sha256": "5e792bce3682b5c2ae0fe123ecac658d0a20daa848376a8a5a7abd3adb7544f5",
+  "v2_weights_path": "experiments/runs_v2/V2-AUG-RERUN1/weights/best.pt",
+  "v2_weights_sha256": "e810aeb06fff9628de1bd8ebafe8d103f29ac25cbf2ed39fb76a7f4595955765",
+  "v3_weights_path": "experiments/runs_v3/V3-CAMPUS-ADAPT/weights/epoch26.pt",
+  "v3_weights_sha256": "a245417c0c40cb90a71de3397223c90f55b6261bcfb8c4df976690855e6ae9f2",
+  "v3_selected_epoch": 27,
+  "v2_frozen_threshold": 0.05,
+  "v3_frozen_threshold": 0.2,
+  "evaluator_sha256": "ef114face09c7f9e79acb6fcd5f5b2350fb092717c3f60c0189bc6944ea94527",
+  "comparison_protocol_sha256": "99b49d708d17222b72baa2b4d36af746574c76bf7ef84faf62e5428920a3dd8c",
+  "note": "本记录写在第一次 test 推理之前；test 只用于一次性报告，不参与任何选择",
+  "_public_copy_notice": "Public copy redacts the executor's real name for privacy. The original frozen provenance record is retained privately.",
+  "_public_copy_note": "This is a REDACTED PUBLIC COPY of the frozen unseal record, not the original. Only 'unsealed_by' was changed; all timestamps, SHA256 hashes and thresholds are unchanged.",
+  "_path_note": "Absolute local paths in this public copy were generalized to repository-relative paths. All SHA256 hashes and timestamps are unchanged."
+}

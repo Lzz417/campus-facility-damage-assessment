@@ -1,0 +1,47 @@
+category,metric,value,unit,source
+数据规模,Smart Campus 原始图片数,4323,张,audit
+数据规模,Smart Campus 原始 bbox 数,6602,个,audit
+数据规模,官方划分 train/valid/test,3026 / 648 / 649,张,audit（已弃用）
+清洗,剔除（unique images）,365,张,v3_bookkeeping_checks
+清洗,剔除（class-image 计数）,374,个,v3_bookkeeping_checks
+清洗,只含 potholes/spalling 而排除,1764,张,split build
+清洗,corrosion 类剔除比例,57,%,screening
+清洗,V3 映射池,2194,张,split freeze
+划分,train / val / test,1536 / 329 / 329,张,split freeze
+划分,实际比例,70.0 / 15.0 / 15.0,%,split freeze
+划分,constraint group 数,1984,组,split build
+划分,最大组,52,张（2.37%）,split build
+划分,跨 split 近重复（两套哈希实现）,0 / 0,对,split freeze 校验
+训练,训练图总数（MBDD 7752 + 新来源 1536）,9288,张,combined train manifest
+训练,epochs,30,,args.yaml
+模型选择,过 forgetting guard 的候选,27 / 30,个,selection.json
+模型选择,selected epoch,27,,selection.json
+模型选择,guard 阈值,0.0948,= 0.1185×0.80,protocol
+开发集,MBDD val mAP50（V2 基线）,0.1185,,training_v2_results.csv
+开发集,MBDD val mAP50（V3 epoch 27）,0.1064,,per_epoch_eval
+开发集,旧域相对变化,-10.2,%,计算
+开发集,Smart Campus val mAP50（V2）,0.0255,,v2_on_sc_val_baseline
+开发集,Smart Campus val mAP50（V3）,0.6995,,per_epoch_eval
+工作点,V2 冻结阈值,0.050,,v2_on_sc_val_baseline
+工作点,V3 冻结阈值,0.200,,v3_model_freeze
+test,test 集规模,329,张,test manifest
+test,mAP50（V2 / V3）,0.0353 / 0.6533,Δ +0.6180,test results
+test,mAP50-95（V2 / V3）,0.0153 / 0.4283,Δ +0.4130,test results
+test,peeling AP50（V2 / V3）,0.0945 / 0.8047,Δ +0.7102,test results
+test,crack AP50（V2 / V3）,0.0112 / 0.8113,Δ +0.8001,test results
+test,rust AP50（V2 / V3）,0.0001 / 0.3439,Δ +0.3438,test results
+test,工作点 F1（V2 / V3）,0.1002 / 0.7019,,test results
+test,no-prediction image rate（V2 / V3）,42.86 / 4.56,%,test results
+test,技术重跑次数,0,,v3_test_reruns.csv
+V2 严格评价,"detection mAP50（split_v2 test, n=1179）",0.1632,,final_test_v2/final_test_v2_results.json (frozen)
+V2 严格评价,detection mAP50-95（split_v2 test）,0.0597,,final_test_v2/final_test_v2_results.json (frozen)
+V2 严格评价,工作点 P（conf 0.075 / iou 0.45 / max_det 30）,0.2786,,final_test_v2/final_test_v2_results.json (frozen)
+V2 严格评价,工作点 R,0.2111,,final_test_v2/final_test_v2_results.json (frozen)
+V2 严格评价,工作点 F1,0.2402,,final_test_v2/final_test_v2_results.json (frozen)
+V2 严格评价,工作点 F1 · peeling / crack / rust,0.1515 / 0.2228 / 0.3719,,final_test_v2/final_test_v2_results.json (frozen)
+V2 严格评价,分割 C binary IoU（60 张参考掩码）,0.1133,,final_test_v2/final_test_v2_results.json (frozen)
+V2 严格评价,分割 C P / R / F1,0.4119 / 0.1352 / 0.2036,,final_test_v2/final_test_v2_results.json (frozen)
+V2 严格评价,分割 C macro class IoU,0.1386,,final_test_v2/final_test_v2_results.json (frozen)
+V2 严格评价,分割 D binary IoU,0.1124,,final_test_v2/final_test_v2_results.json (frozen)
+V2 严格评价,分割 D P / R / F1,0.4044 / 0.1346 / 0.2020,,final_test_v2/final_test_v2_results.json (frozen)
+V2 严格评价,分割 D macro class IoU,0.1377,,final_test_v2/final_test_v2_results.json (frozen)
