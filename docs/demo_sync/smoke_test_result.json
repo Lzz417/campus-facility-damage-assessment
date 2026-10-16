@@ -1,0 +1,47 @@
+[
+  {
+    "name": "1 端到端跑通",
+    "pass": true,
+    "detail": "检测数=1，掩码 shape=(720, 1280)，summary 键=['num_defects', 'per_class', 'total_area_mm2', 'total_pixel_area']"
+  },
+  {
+    "name": "2 送入 SAM2 的是 RGB",
+    "pass": true,
+    "detail": "1/1 个 ROI 与 cvtColor(BGR2RGB) 逐像素相同；其中与 BGR 有差异的 1 个"
+  },
+  {
+    "name": "3 重叠区归属高 conf 类",
+    "pass": true,
+    "detail": "重叠像素 (100,100) 的类别值=2（期望 2 = cls1 crack 高conf；若为 3 则是低 conf 胜）"
+  },
+  {
+    "name": "3b 非重叠区未受影响",
+    "pass": true,
+    "detail": "两 ROI 之外 (175,175)=0（0=背景）；仅高 conf ROI 覆盖处 (60,60)=2（2=cls1，符合预期）"
+  },
+  {
+    "name": "3c 默认路径行为未变（最小影响）",
+    "pass": true,
+    "detail": "默认 frozen_compat=False：重叠像素=3（3=cls2 低conf胜 = 历史行为）；送 SAM2 的与 BGR 切片逐像素相同=True、与 RGB 相同=False"
+  },
+  {
+    "name": "4 无检测文案为「未检出目标」",
+    "pass": true,
+    "detail": "app.py 含新文案=True；UI 代码中的违规=0；其它语义出现处（非 UI，需保留）=['scripts\\\\02_clean_dataset.py:91 # 完好样本（无缺陷标注）→ 负样本']"
+  },
+  {
+    "name": "5 无标定只报像素/占比+未标定",
+    "pass": true,
+    "detail": "无标定 area_mm2=None、表格单元格='未标定'、像素=100、占比=0.0400；有标定时 mm²=25.00"
+  },
+  {
+    "name": "6 三个受保护文件 SHA256 未变",
+    "pass": true,
+    "detail": "不一致=无；实际被改动的是=['app/app.py', 'src/pipeline.py']"
+  },
+  {
+    "name": "7 权重与评价证据零写入",
+    "pass": true,
+    "detail": "评价证据目录被写=无；权重文件被写=无；两个已发布权重哈希=全部未变"
+  }
+]

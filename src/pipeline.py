@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import cv2
 import numpy as np
 
 from . import detect as det
@@ -49,10 +50,23 @@ def _adjust_box(roi_box: np.ndarray, cfg, cls_name: str | None,
 
 def run_pipeline(image_bgr: np.ndarray, cfg,
                  yolo_model=None, sam2_predictor=None,
-                 use_post: bool = True) -> dict:
+                 use_post: bool = True,
+                 frozen_compat: bool = False) -> dict:
     """单图端到端推理。
 
     use_post=False 时跳过自研后处理（供消融实验 C 组隔离"级联 vs 后处理"增益）。
+
+    frozen_compat=False（**默认，保持历史行为不变**）：
+        * ROI 以 BGR 原样送 SAM2；
+        * 叠加按 conf 降序遍历 ⇒ 跨类冲突时**低 conf 胜**。
+        历史调用方（`experiments/ablation.py`、`scripts/eval_box_margin_effect.py`、
+        `scripts/eval_branch_d.py`、`scripts/make_demo_assets.py`）依赖这个行为，
+        改它会让它们无法复现已记录的 `experiments/ablation*.csv`。
+
+    frozen_compat=True（**仅 Web demo 使用**）：
+        * 送 SAM2 前显式 BGR→RGB；
+        * 叠加按 conf 升序 ⇒ 跨类冲突时**高 conf 胜**。
+        两者都与 V2 冻结评价脚本 `eval_seg_cd_test.py` 的口径一致。
 
     返回 dict：
       results: list[dict]，每个元素含 class/conf/box/mask/pixel_area/ratio/area_mm2
@@ -72,7 +86,12 @@ def run_pipeline(image_bgr: np.ndarray, cfg,
     results: list[dict] = []
     full_mask = np.zeros((h, w), dtype=np.uint8)  # 0=背景，>=1 为类别
 
-    for d in dets:
+    # 遍历顺序：frozen_compat=True 时按 conf **升序**（低 conf 先写、高 conf 后写）
+    # ⇒ 跨类冲突时**高 conf 胜**，与冻结评价口径一致（eval_seg_cd_test.py 同样升序放置）。
+    # 默认（False）保持 det.detect 的降序 ⇒ 后写的低 conf 覆盖 = **低 conf 胜**（历史行为）。
+    # 注意：只对**遍历副本**排序，绝不修改 det.detect 本身的降序语义。
+    iter_dets = sorted(dets, key=lambda x: x.conf) if frozen_compat else dets
+    for d in iter_dets:
         roi, offset = det.crop_roi(image_bgr, d.xyxy, margin_ratio=0.1)
         if roi.size == 0:
             continue
@@ -83,7 +102,12 @@ def run_pipeline(image_bgr: np.ndarray, cfg,
         # 逐类 box 边距调整（默认关闭，见 _adjust_box 注释；实验项）
         cls_name = class_names[d.cls] if d.cls < len(class_names) else None
         roi_box = _adjust_box(roi_box, cfg, cls_name, roi.shape)
-        roi_mask = seg.segment_roi(sam2_predictor, roi, roi_box)
+        # frozen_compat=True 时显式 BGR→RGB 后再送 SAM2（SAM2 期望 RGB 输入）。
+        # 只在**这一侧**转换——src/segment.py 不做转换，因为冻结评价脚本
+        # （eval_seg_cd_test.py）已经自己传 RGB，若在那里再转一次会造成双重转换、
+        # 破坏 V2 C/D 掩码的可复现性。
+        roi_for_sam = cv2.cvtColor(roi, cv2.COLOR_BGR2RGB) if frozen_compat else roi
+        roi_mask = seg.segment_roi(sam2_predictor, roi_for_sam, roi_box)
         # 自研后处理（创新点3）
         if use_post:
             min_px_cfg = cfg.postprocess.get("min_area_px_per_class") or {}

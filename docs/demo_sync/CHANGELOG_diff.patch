@@ -1,0 +1,122 @@
+diff --git a/app/app.py b/app/app.py
+index 4c3181f..d9297ee 100644
+--- a/app/app.py
++++ b/app/app.py
+@@ -26,6 +26,10 @@ from src.config import get_config
+ 
+ st.set_page_config(page_title="校园设施损伤评估系统", layout="wide")
+ 
++# 冻结工作点：与 V2 冻结评价（eval_seg_cd_test.py 的 CONF_WORKPOINT）一致。
++# 只用于**演示默认值**，不写回 configs/config.yaml。
++FROZEN_CONF = 0.075
++
+ 
+ @st.cache_resource
+ def load_models():
+@@ -39,7 +43,11 @@ def load_models():
+ 
+ 
+ def process_one(image_bgr, yolo, sam2, cfg):
+-    res = pl.run_pipeline(image_bgr, cfg, yolo_model=yolo, sam2_predictor=sam2)
++    # frozen_compat=True：本 demo 显式对齐 V2 冻结评价口径
++    # （送 SAM2 前 BGR→RGB；跨类冲突高 conf 胜）。
++    # 该开关默认关闭，因此**不影响** ablation / box_margin / branch_d 等历史调用方。
++    res = pl.run_pipeline(image_bgr, cfg, yolo_model=yolo, sam2_predictor=sam2,
++                          frozen_compat=True)
+     overlay = pl.overlay(image_bgr, res["mask"], cfg)
+     return res, overlay
+ 
+@@ -54,7 +62,14 @@ def main():
+         st.header("参数设置")
+         mm_per_pixel = st.text_input("标定系数 (mm/像素)", value="",
+                                      help="留空则只输出像素面积与占比")
+-        conf = st.slider("检测置信度", 0.05, 0.95, float(cfg.detect.get("conf", 0.25)))
++        # 演示默认工作点 = V2 冻结评价工作点 0.075（**仅在内存覆盖**；
++        # configs/config.yaml 的 detect.conf=0.25 是受保护的历史配置，不允许改）。
++        conf = st.slider("检测置信度", 0.05, 0.95, FROZEN_CONF)
++        if abs(conf - FROZEN_CONF) < 1e-9:
++            st.caption("冻结工作点：0.075（与 V2 冻结评价一致）")
++        else:
++            st.caption("⚠️ 已偏离冻结工作点：当前 %.3f ≠ 0.075 —— "
++                       "此时**不再是**冻结工作点演示" % conf)
+         cfg.detect.conf = conf
+         cfg.quantify.mm_per_pixel = float(mm_per_pixel) if mm_per_pixel.strip() else None
+         st.divider()
+@@ -98,7 +113,10 @@ def main():
+                     "真实面积(mm²)": r["area_mm2"] if r["area_mm2"] is not None else "未标定",
+                 })
+             if not res["results"]:
+-                all_rows.append({"图片": up.name, "类别": "无缺陷", "置信度": "-",
++                # 统一文案：**「未检出目标」**。
++                # 不要写成"该图没有缺陷"——那等于断言实际不存在缺陷，
++                # 而这里的事实只是"模型在本图上没有输出任何检测框"。
++                all_rows.append({"图片": up.name, "类别": "未检出目标", "置信度": "-",
+                                  "像素面积": 0, "损伤占比": 0.0, "真实面积(mm²)": "-"})
+ 
+     if all_rows:
+diff --git a/src/pipeline.py b/src/pipeline.py
+index 67d3e4d..825cc91 100644
+--- a/src/pipeline.py
++++ b/src/pipeline.py
+@@ -4,6 +4,7 @@
+ """
+ from __future__ import annotations
+ 
++import cv2
+ import numpy as np
+ 
+ from . import detect as det
+@@ -49,11 +50,24 @@ def _adjust_box(roi_box: np.ndarray, cfg, cls_name: str | None,
+ 
+ def run_pipeline(image_bgr: np.ndarray, cfg,
+                  yolo_model=None, sam2_predictor=None,
+-                 use_post: bool = True) -> dict:
++                 use_post: bool = True,
++                 frozen_compat: bool = False) -> dict:
+     """单图端到端推理。
+ 
+     use_post=False 时跳过自研后处理（供消融实验 C 组隔离"级联 vs 后处理"增益）。
+ 
++    frozen_compat=False（**默认，保持历史行为不变**）：
++        * ROI 以 BGR 原样送 SAM2；
++        * 叠加按 conf 降序遍历 ⇒ 跨类冲突时**低 conf 胜**。
++        历史调用方（`experiments/ablation.py`、`scripts/eval_box_margin_effect.py`、
++        `scripts/eval_branch_d.py`、`scripts/make_demo_assets.py`）依赖这个行为，
++        改它会让它们无法复现已记录的 `experiments/ablation*.csv`。
++
++    frozen_compat=True（**仅 Web demo 使用**）：
++        * 送 SAM2 前显式 BGR→RGB；
++        * 叠加按 conf 升序 ⇒ 跨类冲突时**高 conf 胜**。
++        两者都与 V2 冻结评价脚本 `eval_seg_cd_test.py` 的口径一致。
++
+     返回 dict：
+       results: list[dict]，每个元素含 class/conf/box/mask/pixel_area/ratio/area_mm2
+       summary: quantify.summarize 的输出
+@@ -72,7 +86,12 @@ def run_pipeline(image_bgr: np.ndarray, cfg,
+     results: list[dict] = []
+     full_mask = np.zeros((h, w), dtype=np.uint8)  # 0=背景，>=1 为类别
+ 
+-    for d in dets:
++    # 遍历顺序：frozen_compat=True 时按 conf **升序**（低 conf 先写、高 conf 后写）
++    # ⇒ 跨类冲突时**高 conf 胜**，与冻结评价口径一致（eval_seg_cd_test.py 同样升序放置）。
++    # 默认（False）保持 det.detect 的降序 ⇒ 后写的低 conf 覆盖 = **低 conf 胜**（历史行为）。
++    # 注意：只对**遍历副本**排序，绝不修改 det.detect 本身的降序语义。
++    iter_dets = sorted(dets, key=lambda x: x.conf) if frozen_compat else dets
++    for d in iter_dets:
+         roi, offset = det.crop_roi(image_bgr, d.xyxy, margin_ratio=0.1)
+         if roi.size == 0:
+             continue
+@@ -83,7 +102,12 @@ def run_pipeline(image_bgr: np.ndarray, cfg,
+         # 逐类 box 边距调整（默认关闭，见 _adjust_box 注释；实验项）
+         cls_name = class_names[d.cls] if d.cls < len(class_names) else None
+         roi_box = _adjust_box(roi_box, cfg, cls_name, roi.shape)
+-        roi_mask = seg.segment_roi(sam2_predictor, roi, roi_box)
++        # frozen_compat=True 时显式 BGR→RGB 后再送 SAM2（SAM2 期望 RGB 输入）。
++        # 只在**这一侧**转换——src/segment.py 不做转换，因为冻结评价脚本
++        # （eval_seg_cd_test.py）已经自己传 RGB，若在那里再转一次会造成双重转换、
++        # 破坏 V2 C/D 掩码的可复现性。
++        roi_for_sam = cv2.cvtColor(roi, cv2.COLOR_BGR2RGB) if frozen_compat else roi
++        roi_mask = seg.segment_roi(sam2_predictor, roi_for_sam, roi_box)
+         # 自研后处理（创新点3）
+         if use_post:
+             min_px_cfg = cfg.postprocess.get("min_area_px_per_class") or {}

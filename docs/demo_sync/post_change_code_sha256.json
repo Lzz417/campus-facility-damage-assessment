@@ -1,0 +1,10 @@
+{
+  "app/app.py": "cde0cf8b42e2d3c89bbc597a8f09cf729a87eeb523bd6c9531e6164e5e01c28f",
+  "src/pipeline.py": "06d593a788cdb880cf27fea294620c6c1736a6b0405fdd2e742253b0b9d3d3cd",
+  "src/segment.py": "ad821c07f298d4d6c5351375dfde1724fbcc8b50f7e7a27b2e88fa81343c731f",
+  "src/detect.py": "67233097ef3c7cf93a53bfa45590c66de57c43bd541bfaf7448843451135a756",
+  "src/postprocess.py": "97cb4599c2da0c783a42710690886b199f26910cb6cef17df65a5f2b81822f36",
+  "src/quantify.py": "3fce0220d1b559921ade83522c31b50d9afe2e72ab7ed609ac3c96d1d9c958d0",
+  "configs/config.yaml": "bf58f11a95d3f05fcdcefe2fddff8419b6c424975b73c7bf9001e7b425a78a8b",
+  "start_system.py": "8781a91f1a72a5968d356f404bf0fb242507a5261d69a5fb6f5aa928cf097250"
+}

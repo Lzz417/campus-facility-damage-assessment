@@ -26,6 +26,10 @@ from src.config import get_config
 
 st.set_page_config(page_title="校园设施损伤评估系统", layout="wide")
 
+# 冻结工作点：与 V2 冻结评价（eval_seg_cd_test.py 的 CONF_WORKPOINT）一致。
+# 只用于**演示默认值**，不写回 configs/config.yaml。
+FROZEN_CONF = 0.075
+
 
 @st.cache_resource
 def load_models():
@@ -39,7 +43,11 @@ def load_models():
 
 
 def process_one(image_bgr, yolo, sam2, cfg):
-    res = pl.run_pipeline(image_bgr, cfg, yolo_model=yolo, sam2_predictor=sam2)
+    # frozen_compat=True：本 demo 显式对齐 V2 冻结评价口径
+    # （送 SAM2 前 BGR→RGB；跨类冲突高 conf 胜）。
+    # 该开关默认关闭，因此**不影响** ablation / box_margin / branch_d 等历史调用方。
+    res = pl.run_pipeline(image_bgr, cfg, yolo_model=yolo, sam2_predictor=sam2,
+                          frozen_compat=True)
     overlay = pl.overlay(image_bgr, res["mask"], cfg)
     return res, overlay
 
@@ -54,7 +62,14 @@ def main():
         st.header("参数设置")
         mm_per_pixel = st.text_input("标定系数 (mm/像素)", value="",
                                      help="留空则只输出像素面积与占比")
-        conf = st.slider("检测置信度", 0.05, 0.95, float(cfg.detect.get("conf", 0.25)))
+        # 演示默认工作点 = V2 冻结评价工作点 0.075（**仅在内存覆盖**；
+        # configs/config.yaml 的 detect.conf=0.25 是受保护的历史配置，不允许改）。
+        conf = st.slider("检测置信度", 0.05, 0.95, FROZEN_CONF)
+        if abs(conf - FROZEN_CONF) < 1e-9:
+            st.caption("冻结工作点：0.075（与 V2 冻结评价一致）")
+        else:
+            st.caption("⚠️ 已偏离冻结工作点：当前 %.3f ≠ 0.075 —— "
+                       "此时**不再是**冻结工作点演示" % conf)
         cfg.detect.conf = conf
         cfg.quantify.mm_per_pixel = float(mm_per_pixel) if mm_per_pixel.strip() else None
         st.divider()
@@ -98,7 +113,10 @@ def main():
                     "真实面积(mm²)": r["area_mm2"] if r["area_mm2"] is not None else "未标定",
                 })
             if not res["results"]:
-                all_rows.append({"图片": up.name, "类别": "无缺陷", "置信度": "-",
+                # 统一文案：**「未检出目标」**。
+                # 不要写成"该图没有缺陷"——那等于断言实际不存在缺陷，
+                # 而这里的事实只是"模型在本图上没有输出任何检测框"。
+                all_rows.append({"图片": up.name, "类别": "未检出目标", "置信度": "-",
                                  "像素面积": 0, "损伤占比": 0.0, "真实面积(mm²)": "-"})
 
     if all_rows:
