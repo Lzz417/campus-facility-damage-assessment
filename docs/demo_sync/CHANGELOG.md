@@ -116,9 +116,10 @@ scripts/make_demo_assets.py:58
 | D | 3c 的合成图是均匀灰 ⇒ BGR==RGB，通道序断言无法判别 | **测试设计缺陷** | 改用有色合成图（三通道不同） |
 | E | smoke test 初次把注释里的字面量也算成违规 | **检查器口径过宽** | 限定为"UI 代码中的文案"，其余语义（数据集清洗）单独列出并保留 |
 | F | 上一轮声称"报告文件不存在" | **我的检索失误** | 报告实际在 `report/研究报告.md`；更正 previous file-discovery statement，**不影响任何科研结果** |
-| G | 发布审计中把 `train/train_yolo_v2.py` 判为"0 绝对路径" | **bash grep 反斜杠转义写错** ⇒ 误判；该文件第 27 行实为 `ROOT = Path(r"D:\zl	iaobei")` | 已改为 `Path(__file__).resolve().parent.parent`；并改用 Python 脚本做扫描 |
+| G | 发布审计中把 `train/train_yolo_v2.py` 判为"0 绝对路径" | **bash grep 反斜杠转义写错** ⇒ 误判；该文件原有一处硬编码的本机 Windows 绝对路径 （已在下一条记录中说明，此处不再复述该路径） | 已改为按文件位置推断仓库根；并改用 Python 脚本做扫描 |
 | H | 用正则扫绝对路径时把 `https://` 与 Python 的 `f:` / `s:` 字典语法判为命中 | **我的正则过宽**（盘符后的分隔符写成了可选） | 改为「盘符 + 必须跟分隔符 + 前导非字母数字」，重扫后为 0 |
 | I | smoke test 的 `test_7` 把 `weights/` 下任何文件都判为违规 | **检查器过宽**：把故意新增的 `weights/README.md` 误报为风险 | 改为**只判模型权重文件**并**显式核对两个已发布权重的 SHA256** |
+| J | 公开文件 `docs/demo_sync/CHANGELOG.md` 中误记了一处本机 Windows 绝对路径 | **documentation / privacy hygiene issue**：a local Windows absolute path was accidentally recorded in the changelog。The path was introduced while writing the changelog and was later redacted before public release。impact：**no impact on scientific results, code behavior, or frozen evidence**；resolution：**local absolute path redacted before public push** | — |
 
 **没有任何意外写入**：第 7 项检查确认改动窗口内 `docs/evidence`、`experiments`、
 `weights`、`data/splits*` 均无文件被写。
