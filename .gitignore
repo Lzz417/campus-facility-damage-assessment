@@ -29,3 +29,16 @@ outputs/
 # ---------- 系统 ----------
 Thumbs.db
 .DS_Store
+
+# ---------- 发布范围：本地保留、不上传 ----------
+experiments/runs_v2/
+experiments/runs_v3/
+docs/evidence/
+docs/release/
+
+# ---------- 缓存与临时产物 ----------
+*.cache
+*.npz
+*.zip
+.env
+.env.*
